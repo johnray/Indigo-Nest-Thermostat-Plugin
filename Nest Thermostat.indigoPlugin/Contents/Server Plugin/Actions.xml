@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!-- By default the thermostat type devices will inherit all
+	 ThermostatAction actions, which will be dispatched to
+	 the actionControlThermostat() method defined in plugin.py.
+	 
+	 Additional custom actions can also be defined here. The
+	 example below defines a custom action to modify the brightness
+	 of the backlit display of the module, and to modify the custom
+	 backlightBrightness state added to Devices.xml.
+-->
+<Actions>
+	<Action id="setAwayStatus" deviceFilter="self">
+		<Name>Set Away Status</Name>
+		<CallbackMethod>setAwayStatus</CallbackMethod>
+		<ConfigUI>
+			<Field id="away" type="checkbox" defaultValue="false">
+				<Label>I am away:</Label>
+			</Field>
+		</ConfigUI>
+	</Action>
+</Actions>
