@@ -134,19 +134,19 @@ class NestThermostat:
 			structures=self._status_data[NEST_STRUCTURE_DATA]
 			self._nest_structures=dict()
 			for key in structures.keys():
-				self._nest_structures[structures[key][NEST_STRUCTURE_NAME]]=key
+				self._nest_structures[structures[key][NEST_STRUCTURE_NAME].lower()]=key
 			# Look through serial numbers to find Nest names and build a lookup table
 			serials=self._status_data[NEST_SHARED_DATA]
 			self._nest_serials=dict()
 			for key in serials.keys():
-				self._nest_serials[serials[key][NEST_DEVICE_NAME]]=key
+				self._nest_serials[serials[key][NEST_DEVICE_NAME].lower()]=key
 	
 			# Use this to set the serial and structure (location) instance variables and construct the URLs.  
 			# I'd rather do this earlier, but letting the user refer to the Nest (and its location) by name
 			# is worth it.
 			
-			self._serial=self._nest_serials[self._nest_name]
-			self._structure=self._nest_structures[self._structure_name]
+			self._serial=self._nest_serials[self._nest_name.lower()]
+			self._structure=self._nest_structures[self._structure_name.lower()]
 	
 			# Setup the remaining URLs for the class
 			self._shared_url=self._transport_url+NEST_SHARED_URL_FRAGMENT+self._serial
@@ -330,7 +330,7 @@ class NestThermostat:
 		retry_count=0
 		while (retry_count<NEST_MAX_RETRIES):
 			self._cached=False
-			self._send_command(send_data,self._shared_url)
+			self._send_command(send_data,self._device_url)
 			retry_count=retry_count+1
 			if (NEST_FAN_MAP[command]==self.get_fan_mode()):
 				return True
@@ -363,7 +363,7 @@ class NestThermostat:
 		"""Sets the Nest thermostat mode to 'cool' (AC), 'heat' (heating), 'range' (auto heat/cool), or 'off'.
 	
 				Arguments:
-					command - A string representing the Nest fan mode. 'cool' for AC, 'heat' for heating, 
+					command - A string representing the Nest heat/cool mode. 'cool' for AC, 'heat' for heating, 
 							'range' for maintaining a temperature range, or 'off' to turn the HVAC system off.
 							Default is 'cool' because I hate the heat.
 				
@@ -518,25 +518,25 @@ class Plugin(indigo.PluginBase):
 	def _refreshStatesFromHardware(self, dev, logRefresh, commJustStarted):
 		# As an example here we update the temperature and humidity
 		# sensor states to random values.
-		self._changeTempSensorValue(dev, 1, self._myNest.get_temp())
-		self._changeHumiditySensorValue(dev, 1, self._myNest.get_humidity())
+		self._changeTempSensorValue(dev, 1, self._myNest[dev.pluginProps["address"]].get_temp())
+		self._changeHumiditySensorValue(dev, 1, self._myNest[dev.pluginProps["address"]].get_humidity())
 
 		#	Other states that should also be updated:
 				
-		dev.updateStateOnServer("hvacOperationMode", map_to_indigo_hvac_mode[self._myNest.get_heat_cool_mode()])
-		dev.updateStateOnServer("hvacFanMode", map_to_indigo_fan_mode[self._myNest.get_fan_mode()])
-		dev.updateStateOnServer("hvacCoolerIsOn", self._myNest.ac_is_on())
-		dev.updateStateOnServer("hvacHeaterIsOn", self._myNest.heat_is_on())
-		dev.updateStateOnServer("hvacFanIsOn", self._myNest.fan_is_on())
-		dev.updateStateOnServer("away",self._myNest.away_is_active())
-		if (self._myNest.get_heat_cool_mode()=="cool"):
-			dev.updateStateOnServer("setpointCool", self._myNest.get_target_temp())
+		dev.updateStateOnServer("hvacOperationMode", map_to_indigo_hvac_mode[self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()])
+		dev.updateStateOnServer("hvacFanMode", map_to_indigo_fan_mode[self._myNest[dev.pluginProps["address"]].get_fan_mode()])
+		dev.updateStateOnServer("hvacCoolerIsOn", self._myNest[dev.pluginProps["address"]].ac_is_on())
+		dev.updateStateOnServer("hvacHeaterIsOn", self._myNest[dev.pluginProps["address"]].heat_is_on())
+		dev.updateStateOnServer("hvacFanIsOn", self._myNest[dev.pluginProps["address"]].fan_is_on())
+		dev.updateStateOnServer("away",self._myNest[dev.pluginProps["address"]].away_is_active())
+		if (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="cool"):
+			dev.updateStateOnServer("setpointCool", self._myNest[dev.pluginProps["address"]].get_target_temp())
 			dev.updateStateOnServer("setpointHeat", 0)
-		elif (self._myNest.get_heat_cool_mode()=="heat"):
-			dev.updateStateOnServer("setpointHeat", self._myNest.get_target_temp())
+		elif (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="heat"):
+			dev.updateStateOnServer("setpointHeat", self._myNest[dev.pluginProps["address"]].get_target_temp())
 			dev.updateStateOnServer("setpointCool", 0)
-		elif (self._myNest.get_heat_cool_mode()=="range"):
-			range_temps=self._myNest.get_range_temps()
+		elif (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="range"):
+			range_temps=self._myNest[dev.pluginProps["address"]].get_range_temps()
 			dev.updateStateOnServer("setpointCool", range_temps['high'])
 			dev.updateStateOnServer("setpointHeat", range_temps['low'])
 		if logRefresh:
@@ -551,7 +551,7 @@ class Plugin(indigo.PluginBase):
 	def _handleChangeHvacModeAction(self, dev, newHvacMode):
 		# Command hardware module (dev) to change the thermostat mode here:
 		
-		sendSuccess=self._myNest.set_heat_cool_mode(_lookupActionStrFromHvacMode(newHvacMode))
+		sendSuccess=self._myNest[dev.pluginProps["address"]].set_heat_cool_mode(_lookupActionStrFromHvacMode(newHvacMode))
 
 		actionStr = _lookupActionStrFromHvacMode(newHvacMode)
 
@@ -569,7 +569,7 @@ class Plugin(indigo.PluginBase):
 	# Process action request from Indigo Server to change thermostat's fan mode.
 	def _handleChangeFanModeAction(self, dev, newFanMode):
 		# Command hardware module (dev) to change the fan mode here:
-		sendSuccess = self._myNest.set_fan_mode(_lookupActionStrFromFanMode(newFanMode))		# Set to False if it failed.
+		sendSuccess = self._myNest[dev.pluginProps["address"]].set_fan_mode(_lookupActionStrFromFanMode(newFanMode))		# Set to False if it failed.
 		actionStr = _lookupActionStrFromFanMode(newFanMode)
 		if sendSuccess:
 			# If success then log that the command was successfully sent.
@@ -593,22 +593,22 @@ class Plugin(indigo.PluginBase):
 		
 		if stateKey == u"setpointCool":
 			# Command hardware module (dev) to change the cool setpoint to newSetpoint here:
-			if (self._myNest.get_heat_cool_mode()=="cool"):
-				sendSuccess=self._myNest.set_target_temp(newSetpoint)
-			elif (self._myNest.get_heat_cool_mode()=="heat"):
+			if (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="cool"):
+				sendSuccess=self._myNest[dev.pluginProps["address"]].set_target_temp(newSetpoint)
+			elif (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="heat"):
 				sendSuccess=False
-			elif (self._myNest.get_heat_cool_mode()=="range"):
-				range_temps=self._myNest.get_range_temps()
-				sendSuccess=self._myNest.set_range_temps(range_temps['low'],newSetpoint)
+			elif (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="range"):
+				range_temps=self._myNest[dev.pluginProps["address"]].get_range_temps()
+				sendSuccess=self._myNest[dev.pluginProps["address"]].set_range_temps(range_temps['low'],newSetpoint)
 		elif stateKey == u"setpointHeat":
 			# Command hardware module (dev) to change the heat setpoint to newSetpoint here:
-			if (self._myNest.get_heat_cool_mode()=="cool"):
+			if (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="cool"):
 				sendSuccess=False
-			elif (self._myNest.get_heat_cool_mode()=="heat"):
-				sendSuccess=self._myNest.set_target_temp(newSetpoint)
-			elif (self._myNest.get_heat_cool_mode()=="range"):
-				range_temps=self._myNest.get_range_temps()
-				sendSuccess=self._myNest.set_range_temps(newSetpoint,range_temps['high'])
+			elif (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="heat"):
+				sendSuccess=self._myNest[dev.pluginProps["address"]].set_target_temp(newSetpoint)
+			elif (self._myNest[dev.pluginProps["address"]].get_heat_cool_mode()=="range"):
+				range_temps=self._myNest[dev.pluginProps["address"]].get_range_temps()
+				sendSuccess=self._myNest[dev.pluginProps["address"]].set_range_temps(newSetpoint,range_temps['high'])
 
 		if sendSuccess:
 			# If success then log that the command was successfully sent.
@@ -685,7 +685,12 @@ class Plugin(indigo.PluginBase):
 		devicename=dev.pluginProps["devicename"]
 		devicelocation=dev.pluginProps["devicelocation"]
 
-		self._myNest=NestThermostat(username,password,devicename,devicelocation)
+		try:
+			self._myNest[dev.pluginProps["address"]]=NestThermostat(username,password,devicename,devicelocation)
+		except:
+			self._myNest=dict()
+			self._myNest[dev.pluginProps["address"]]=NestThermostat(username,password,devicename,devicelocation)
+		#self._myNest=NestThermostat(username,password,devicename,devicelocation)
 		self._refreshStatesFromHardware(dev, True, True)
 
 	def deviceStopComm(self, dev):
@@ -744,7 +749,7 @@ class Plugin(indigo.PluginBase):
 	######################
 	def setAwayStatus(self, pluginAction, dev):
 		awayStatus = pluginAction.props.get(u"away")
-		sendSuccess=self._myNest.set_away_state(awayStatus)
+		sendSuccess=self._myNest[dev.pluginProps["address"]].set_away_state(awayStatus)
 
 		if sendSuccess:
 			# If success then log that the command was successfully sent.
